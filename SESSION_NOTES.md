@@ -1,61 +1,6 @@
 
 
-Older sessions: `docs/sessions/sessions-100-100.md` (1 sessions). Read it only when a question reaches back before session ## Session 101.
-
-## Session 101 (2026-10-26) — M62: **INSTRUMENTS, NOT RESEARCH. The box's dead shapes are now decided in one read, the brief is generated, and the evidence audit found that no trace could ever count as cited. NO prediction PASS this session — the one live run FAILED and the reason is now half-explained.**
-
-**THE READINESS ORACLE (`scripts/accept_ready.py`, 15/15 unit cases).** Read-only; exit 0 = one of
-our bases can carry the UI-queued acceptance, exit 1 = BLOCKED with the single cheapest fix, in
-this order: screen class (a modal swallows every click AND every turn-end key) -> running gdb ->
-evidence headroom (29 MB) -> per base `pending > 0`, `minerals < price`, `credit > 0` (the income
-add is gated `d0 > 0`, so `credit <= 0` never accrues) -> TIGHT horizon when the gate is more than
-`boundaries-2` rounds away. Proven on the live box in three states, one command each:
-`BLOCKED … FIX: screen is 'dialog': press Return …` (an Operations Director "…not sufficient to
-support Scout Patrol…" modal was up and had just swallowed two enqueues) -> `BLOCKED … FIX: enqueue
-on University Base (idx 0)` -> after `m57_ui_enqueue.py --base-index 0 --cell-item 2 --inserts 1`
-(`after INSERT 1 (try 1): pending=1 head=2 minerals=1 d0=1`) -> **`READY … RUN: scripts/m56_build.py
---ui-queued 0 --boundaries 10 …`, exit 0**. Rule cases: `python3 scripts/test_accept_ready.py` ->
-**`PASS 15/15 readiness cases`**.
-
-**THE LIVE RUN FAILED — recorded, not hidden.** `python3 scripts/m56_build.py --ui-queued 0
---boundaries 10 --timeout 400 --no-poke-hold` -> **FAIL**, `positive predictions 1/2 verified;
-boundaries 10/10`, exit 1 (`evidence/trace_m56_build_20261026_165917.jsonl`). Three rows carry it:
-r2 "predicted … observed net 0 of that tuple on the base tile"; r3 `pending 1 -> 0` with the slot
-array `[2,2,0,0]` unchanged; r4 "queue held — head 2->384" while a second base read `386` in the
-same window. Across every trace, **38/303** of our rows and **2804** rows overall hold a slot
-outside `0..23` — so a queue slot is NOT reliably a type id and no global floor may demand it. The
-run also lost University Base (`bases_ours` 2 -> 1, `units_ours` 9 -> 5); base death and the queue
-anomaly share the same windows, so this is **CONFOUNDED**, written as such in NAMED.md.
-
-**A LATENT BUG IN THE GATE'S CITATION CHECKER.** `evidence.load_cites()` matched
-`png|log|gdb|txt|json|csv` — not `.jsonl` — so **no trace could ever count as cited**, and the
-alternation order (`json` before `jsonl`) hid the first fix. After both fixes the audit reports
-10 uncited files / 0.1 MB where it had claimed 578 files / 12.7 MB. New command
-`python3 scripts/evidence.py audit [--delete]` (cites = docs AND `scripts/*.py`, so classifier
-frames are safe): **deleted 396 uncited files, 27.7 -> 22.8 MB**, and `test_classify.py` still
-**PASS 17/17** afterwards.
-
-**FIXTURE TRACES NO LONGER POLLUTE EVIDENCE.** `m56_build.py --fixture X` writes to `$TMPDIR`
-(`scratch/fixture_trace_*.jsonl`); evidence jsonl count 174 before and after the three fixture
-cases (`defer_ok` 0, `beat_visit` 1, `bad` 1).
-
-**THE BRIEF IS GENERATED (`scripts/session_brief.py`, ≤4 KB, `--write` -> `BRIEF.md`).** Verdict +
-both bases + the tagged CONFLICTs + next pick + first commands + uncited evidence. `NAMED.md` now
-carries three **`CONFLICT:`** lines (year store `0x51f554` vs `0x51f54f`; queued-count byte
-`0x94dc84` vs `0x94de84`; pay `0x4f0ca6` vs the measured `0x4efedd`) which the brief prints
-verbatim. Measured on the 125B for the fixed-cost argument: **596 tok -> 1.83 s prefill, 44,446 tok
--> 15.4 s** (0.345 ms/token) — the footing's size is not the problem, stumbling is.
-
-**Open.** (1) What writes 384/386 into `+0x50` (two bases in one window). (2) Whether a dead/stale
-base record is what those reads are. (3) The pop's real operand — pending decrements, slots do not
-move, in two independent sessions now. (4) The support-disband path can eat a created unit, so
-READY ≠ PASS (not modelled). (5) Box drifted: 1 base, 5 units, year 2174 r74 — reload before the
-next acceptance. (6) `session_brief.py` prints only the FIRST line of each multi-line CONFLICT (the
-wrapped continuation lines are not joined).
-
-**Next pick (M63):** what writes 384/386 into `base+0x50`, and what the pop does to the slots —
-reload first, then pop breakpoint + a watchpoint on one named base's `+0x50..+0x74`, two-three
-boundaries, one variable per run.
+Older sessions: `docs/sessions/sessions-101-101.md` (1 sessions). Read it only when a question reaches back before session ## Session 102.
 
 ## Session 102 (2026-10-26) — correction to Session 101
 
@@ -820,3 +765,45 @@ reports `mergeCommit 245a686`).
 
 **Backup.** `~/.hermes/cache/scratch/smac-backup/pre-rewrite-20261027-1036.bundle` (99 MB) holds
 the pre-rewrite history. It is outside the repo: never publish it.
+
+---
+
+## Session 113 (2026-10-27) — M72: WHICH TEST SENDS THE VISIT HOME WITHOUT PAYING. ACCEPTANCE PASS on two real invocations that differ in ONE variable.
+
+**Setup (engine-produced, no queue poke).** Reloaded `m54b_clean.SAV`
+(`SMAC_SAVE='m54b_clean.SAV' python3 scripts/m54a_load.py --relaunch` -> HUD), enqueued the proven
+pair with `python3 scripts/m66_insert_slot.py --base-name "University Base" --item-a 193
+--item-b 192` (queue `[2,193,192]`, pending 2), poked storage to 9 and read it back, then one
+`smac_play --turns 1` boundary let the head-2 Scout complete and pop -> read back
+**head 193, pending 1, queue `[193,192,192,0...]`** — the session-111 shape, produced by the game.
+
+**The runs.**
+- `python3 scripts/m72_gate_watch.py --base-name "University Base" --boundaries 2 --tag m72gate4`
+  -> **PASS**. Stream per visit: `VISIT pend=1 s0=193 min=18` -> `ENTRY` -> `HEAD id=193` ->
+  `POSAFF storage=18 edi=27` -> `BAILAFF storage=18 edi=27`. Read back: head 193 -> 193, pending
+  1 -> 1, storage 18 -> 18, round 57 -> 59.
+- `python3 scripts/m72_gate_watch.py --boundaries 1 --poke-minerals 27 --tag m72gate5` -> **PASS**.
+  `POSAFF storage=27 edi=27` -> `CMP40 ebx=193 edi=27` -> `PAYA storage=27 edi=27` ->
+  `CREATE id=193 arg3=3`; read back storage 0, head 192, pending 0.
+
+**What that names.** The visit's own affordability test is `0x4efa5e cmp [base+0x40],edi` on the
+unit path; below it the bail is `0x4efa63` (message pair `0x67164c/0x671644` -> epilogue
+`0x4f0bfa`). **`edi` is 27 for head 193 where `m56_build.price_of` says 18** — so M71's
+`m71pop2` FAIL is explained: storage 18 < 27, and the same state pays the moment it is 27. `edi` =
+`FUN_004e40a0(owner,1,-1) * FUN_005ac950(head, base, 0)`; the product is measured, the factor
+split inferred. The visitor runs 2-3x per two boundaries with identical operands, so repeats are
+one answer; the facility path's three no-pay exits (`0x4f0a42`, `0x4f0b86`, `0x4f0c28`) were
+armed and never exercised by a positive head.
+
+**Tooling.** New `scripts/m72_gate_watch.py` (12 conditional breakpoints, poke+read-back before
+attach, drives real boundaries itself, 8 gates, one-line PASS/FAIL) and
+`scripts/test_m72_gate.py` -> **21/21**. One real bug the tests caught: the parser blew up on a
+negative hex operand (`-0x10`) — fixed. A gp-error worth recording: gdb `printf` newlines need
+ONE backslash + `n` in the generated script; M72's first draft emitted two and merged every event
+onto the ARMED line (that run is deleted, not cited).
+
+**Open / next pick.** (1) M63 is still unmerged and M68's acceptance still FAILs — neither is
+touched here. (2) `edi`'s factor split: read `FUN_00595ad0` and the `0x94d438`/`0x927a98` guards
+inside `FUN_005ac950` to say whether the 27 is cost 3 x 9 or 1.5 x price. (3) The facility-path
+exits need a NEGATIVE head (a facility in the queue) to be exercised at all. (4) The `income 1`
+accrual case from 104/105 is still open.
