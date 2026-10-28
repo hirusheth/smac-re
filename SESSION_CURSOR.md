@@ -1,1 +1,1 @@
-M74 | m74flag3 PASS (setter 0x4efe60 production; sweep 0x5729d5; clear 0x4ef398) | merged? NO YET - closing docs in flight | next: notes -> NAMED -> NEXT_PROMPT -> skill rsync -> commit -> gate -> submit -> gh pr checks -> merge
+M75 | m75sweep1 PASS | closing (notes+NAMED+NEXT done; commit+gate+submit next) | next pick M76: the 0x100 sweep marker (who clears 0x4ef398 and for which records); start: milestone.py start M76
