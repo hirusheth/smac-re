@@ -1,3 +1,1 @@
-# SESSION_CURSOR.md — rewrite this line before every long step; it is the only record of what was in flight
-
-M73 | acceptance `m73split4` PASS (10/10 gates) | closing written (notes s114, NAMED, NEXT_PROMPT 14,907 B) | next command: `python3 scripts/gate.py --base main`, then submit+merge
+M74 | m74flag3 PASS (setter 0x4efe60 production; sweep 0x5729d5; clear 0x4ef398) | merged? NO YET - closing docs in flight | next: notes -> NAMED -> NEXT_PROMPT -> skill rsync -> commit -> gate -> submit -> gh pr checks -> merge
