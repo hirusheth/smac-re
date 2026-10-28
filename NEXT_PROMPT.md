@@ -2,21 +2,20 @@
 
 ## BUDGET — read before anything else (compression CANNOT be relied on)
 
-The main model is also Hermes' compressor (`auxiliary.compression: auto` -> the same 262k
-model); its summaries die on the output cap (`finish_reason=length`, aborted, 4x on 2026-10-27;
-sessions 113/114 hit 259,232/262,144 and were cut mid-sentence). **Whatever is not finished by
-~150k tokens is not finished at all.**
+The main model is also Hermes' compressor (`auxiliary.compression: auto` -> the same 262k model);
+its summaries die on the output cap (4x `finish_reason=length`, 2026-10-27; sessions 113/114 hit
+259,232/262,144 and were cut mid-sentence). **Whatever is not finished by ~150k tokens is not
+finished at all.**
 
 Counted in TOOL CALLS (the clock you can see):
-- **0-6** brief, this file, notes tail, `accept_ready.py`. No shard reading "for background" —
-  the atlas/NAMED blocks are the summary and they are far smaller than the code.
-- **6-30** the milestone, one variable at a time (a gdb run ~2 calls, relaunch ~1, enqueue ~1).
-  **At call 25: `git add -A && git commit -m "<ID>: checkpoint"`** — after that every step leaves
-  a committed file, because the next turn may be the truncated one.
-- **30-40** STOP MEASURING. Acceptance not green = that is the finding: write the blocker and the
+- **0-6** brief, this file, notes tail, `accept_ready.py`. No shard reading "for background".
+- **6-30** the milestone, one variable at a time (gdb run ~2 calls, relaunch ~1, enqueue ~1).
+  **At call 25: `git add -A && git commit -m "<ID>: checkpoint"`** — the next turn may be the
+  truncated one, so every step after it must leave a committed file.
+- **30-40** STOP MEASURING. Acceptance not green = that IS the finding: write the blocker and the
   failing number, merge nothing, close.
-- **40-50** the closing order, and it may be TERSE: notes entry <= 2 KB, NAMED block <= 1 KB,
-  this file patched BY SECTION, never rewritten.
+- **40-50** the closing order, TERSE: notes <= 2 KB, NAMED block <= 1 KB, this file patched BY
+  SECTION (budget FAILs at 16,000 chars — stay <= 15,500), never rewritten.
 
 Survivability rules:
 - Before any step that can exceed 2 minutes (gdb run, relaunch, evidence audit), overwrite
@@ -24,38 +23,43 @@ Survivability rules:
   nothing else records what was in flight. If the box is mid-run when you are cut off, say so there;
   never `rm`/`git checkout --`.
 - Every doc write is an append or a <= 2 KB patch; never read-then-rewrite a file over 10 KB.
-  Keep tool results small (`grep`/`sed -n` windows, `tail`, `scripts/evidence.py show`) — a
-  multi-KB result is context that cannot be compressed back.
+  Keep tool results small — a multi-KB result is context that cannot be compressed back.
 ## THE LEDGER
 
-Merged: **M54A-M75** (#39-#76)
+Merged: **M54A-M76** (#39-#77)
+
+**M76 (PR #77, merged) — WHO CLEARS THE 0x100 SWEEP MARKER, AND FOR WHICH RECORDS. ACCEPTANCE
+PASS, tag `m76marker1`:** the clear `0x4ef398 and BYTE [ebx+0x98adb9],0xfe` is the FIRST statement
+of FUN_004ef380(owner, tid) (ebx = tid*52), so it lands on the record PASSED IN. In a designed
+production window the caller is the PRODUCTION function's own inline selector (test `0x4f060f`,
+call `0x4f0626`, ret `0x4f062b`, owner = edi); the other selector FUN_004ef540 (test `0x4ef597`),
+the upkeep inline clear (`0x521452`/`0x52145e`) and the tech setters `0x5a7d00`/`0x5a7f67` printed
+ZERO events. Both selectors walk `{0..63} U {owner*64..+63}` and call iff `flags & 0x105 == 0x105`.
+Live: the sweep marks 192/193 at the first production, the NEXT visit clears both. Full text:
+NAMED M76, notes s118. Instrument `scripts/m76_marker_clear.py`.
 
 **M75 (PR #76, merged) — WHAT THE PRODUCTION SWEEP MARKS. ACCEPTANCE PASS, tag `m75sweep1`:**
 at a designed unit's first production FUN_00572800's loop stores `or [rec+0x30],0x104`
-(`0x5729d5`) on EVERY valid UNMARKED designed record — live {192, 193}, nothing else (marked
-64/128-131 skipped; alpha 0-13 skipped; 194 skipped: production `0x4efe60` marks it first).
-192's `+0x24/25/26` triple FAILS the tier test vs 194's yet 192 was stored -> s116's
-"byte-match" claim RETRACTED for designed candidates; the triple + tier tables (`0x92b950`/
-`0x92fd18`, rank=row[0]) + category gate (`0x92ae80+(id*9)<<4`) are alpha-path-only (validator
-`0x5a6cd0(tid, produced flag byte)`) and UNTESTED live. 192 keeps the 0x100 marker (clear
-`0x4ef398` wrote 193 only; writes +0x31, outside a low-word watchpoint). Full text: NAMED M75
-block, notes s117.
+(`0x5729d5`) on EVERY valid UNMARKED designed record — live {192, 193}, nothing else. The
+`+0x24/25/26` triple + tier tables (`0x92b950`/`0x92fd18`, rank=row[0]) + category gate
+(`0x92ae80+(id*9)<<4`) are ALPHA-PATH only (validator `0x5a6cd0(tid, flag byte)`) and UNTESTED
+live — 192 was stored despite FAILING the tier test (s116 retraction). Its "192 keeps the 0x100
+marker" was a SNAPSHOT artifact (M76: the next pass clears every carrier). Full text: NAMED
+M75 + M76, notes s117-118.
 
 **M73 (PR #74, merged) — WHAT THE GATE'S `edi` IS MADE OF. ACCEPTANCE PASS, tag `m73split4`:**
 `edi = A x B`; `A = 0x4e40a0(owner,1,-1)` (9 = Python `cost_multiplier`); designed head:
-`B = 0x5ac950(head,[0x68cbb0],0) = byte(+0x29) + (C*P+50)/100` (measured `C 3`, `P 50` ->
-`edi 45` for 194 where `price_of` says 27); markup skipped whole when `type < 0x40` OR
-`type[+0x30] & 4` (`0x5ac99c`). Full numbers: NAMED M73 block, notes s114.
+`B = 0x5ac950(head,[0x68cbb0],0) = byte(+0x29) + (C*P+50)/100`; markup skipped whole when
+`type < 0x40` OR `type[+0x30] & 4` (`0x5ac99c`). Full numbers: NAMED M73 block, notes s114.
 
 **M74 (PR #75, merged) — WHO sets `type[+0x30] & 4`, AND WHEN. ACCEPTANCE PASS, tag `m74flag3`:**
-PRODUCTION sets it: `0x4efe60` in FUN_004ef6d0 (designed only, between gate `0x4efa5e` and
-pay `0x4efed8`); first production calls FUN_00572800 at `0x4efe7e` (see M75 above for what
-that sweep marks); marker clear FUN_004ef380 `0x4ef398`. Instrument `m74_flag_hw.py`.
-RETRACTED: `0x597487` is a save/load codec (`0x93327a` table). Full text: NAMED M74-RESOLVED, s116.
+PRODUCTION sets it (`0x4efe60` in FUN_004ef6d0, designed only, between gate `0x4efa5e` and pay
+`0x4efed8`); first production calls FUN_00572800 at `0x4efe7e`. RETRACTED: `0x597487` is a
+save/load codec (`0x93327a` table). Full text: NAMED M74-RESOLVED, s116.
 
-**M68 (no PR, FAILED):** 212 sort rules, 55 predict an append, the live enqueue DID append — no
-key named (M70's cursor mechanics explain the appends). **M63 (no PR):** `m63_pop.py`, the
-`0x94de84` queued-count correction, 384/386 identity crossing. Branches hold their scripts.
+**M68 (FAILED):** 212 sort rules, the live enqueue DID append — no key named (M70's cursor
+mechanics explain the appends). **M63:** `m63_pop.py`, the `0x94de84` queued-count correction,
+384/386 identity crossing. Branches hold their scripts.
 
 ## THE INSTRUMENTS (run these FIRST, they replace reading prose)
 
@@ -67,14 +71,14 @@ key named (M70's cursor mechanics explain the appends). **M63 (no PR):** `m63_po
    `--no-screen` skips the OCR. Screen `dialog` -> `scripts/m70_clear_dialog.py` (presses Return
    until it clears); a BUILD/base PANE needs Escape, not Return.
 3. `m74_flag_hw.py` — 4 hw watchpoints on flag WORDS, prints pc+val per store, refuses to drive
-   unless gdb armed 4 HARDWARE watchpoints (M74 PASS tag `m74flag3`); `m72_gate_watch.py` — the
-   VISIT GATE (12 conditional breakpoints, storage poked+read back, 8 gates);
-   `m73_price_split.py` splits `edi` (M73, 10 gates); `m74_flag_watch.py` (M74: FAILED twice);
-   `m71_pop_watch.py` (reproduce M71 only).
-4. `m75_sweep_replay.py --tag m75sweep1` — M75's acceptance: predicts FUN_00572800(194,0)'s
-marked set from live memory, reloads the clean save, enqueues 194, 4 hw watchpoints
-(193/194/192/128), drives boundaries with early-stop, 5 gates (predicted==observed sweep
-stores @0x5729de, production store @0x4efe67, census newly-bit2 == predicted+produced).
+   unless gdb armed them (M74 tag `m74flag3`); `m72_gate_watch.py` — the VISIT GATE (12
+   conditional breakpoints, storage poked+read back); `m73_price_split.py` splits `edi`;
+   `m74_flag_watch.py` (FAILED twice); `m71_pop_watch.py` (reproduce M71 only).
+4. `m75_sweep_replay.py --tag m75sweep1` — M75's acceptance (predicts FUN_00572800(194,0)'s marked
+set from live memory, 4 hw watchpoints, early-stop, 5 gates). `m76_marker_clear.py --tag
+m76marker1` — M76's: 12 silent breakpoints over the clear `0x4ef398` (prints tid/owner/flags/return
+addr), both selectors, the upkeep inline clear, the marker setters, then replays the observed
+stores onto the before-census and reads the 0x100 bit back.
 5-9. The rest of the kit is self-documenting (`--help` before inventing a flag):
    `m66_insert_slot.py`, `m57_ui_enqueue.py`, `m69_enqueue_gdb.py`, `m70_cursor_watch.py`
    (cursor instrument), `test_hud_bar.py`, `m65_screen.py --samples 8` (READ-ONLY meter),
@@ -87,23 +91,18 @@ stores @0x5729de, production store @0x4efe67, census newly-bit2 == predicted+pro
   drain stops at validator `0x5a73f0`. Stale tail: see TRAPS.
 - Gate/pay: `cmp [base+0x40], edi` at `0x4efa5e`, bail `0x4efa63`, pay store `0x4efed8`; `edi` =
   A x B, both MEASURED (M73). The visitor runs 2-3x per two boundaries with identical operands —
-  repeated bail rows are ONE answer. Facility exits `0x4f0a42/0x4f0b86/0x4f0c28` need a NEGATIVE
-  head — no claim.
+  repeated bail rows are ONE answer. Facility exits `0x4f0a42/0x4f0b86/0x4f0c28`: no claim.
 ## STILL OPEN (in priority order)
 
-1. **M76 — the 0x100 SWEEP MARKER: who clears it, and for which records.** The sweep ORs
-`0x104` (bit 2 + marker bit 8) onto every valid unmarked designed record; `0x4ef398`
-(FUN_004ef380, `and BYTE [ebx+0x98adb9],0xfe`) cleared 193's marker but 192 STILL reads
-`0x105` live after m75sweep1 (census diff `192:0x01->0x105`). The clear writes the HIGH byte
-(+0x31) — invisible to a low-WORD watchpoint: watch `*(short*)(0x98adb8+tid*52+0x2e)` or census
-the 0x100 bit. Cheap shape: reload `m54b_clean.SAV`, enqueue 194, drive 2 boundaries, census
-which designed records keep 0x100, breakpoint `0x4ef398` printing `$ebx` (record byte addr =
-`tid*52`); read FUN_004ef380's caller chain (shard_013:12093, `DAT_0091b5b4`). Still open from
-M75: (a) the alpha path (validator `0x5a6cd0(tid, shift)` + tier tables) never fired — needs a
-tid<0x40 passing the validator (shift = produced flag byte 0x41: bit index >7 unrecovered);
-(b) the sweep's outer-loop window arithmetic (stores on 192/193 although the entry computes
-edi=194*52); (c) other FUN_00572800 callers (shard_002 `param_3=1`, shard_012:20852,
-shard_014:17826); (d) the s115 `0x41 -> 0x05` bit-6-LOST whole-word writer (`0x595f82/91/9c`).
+1. **M77 — what reaches the production marker-clear pass, and its gate.** The pass
+(`0x4f05e2-0x4f0635`, test `0x4f060f`, call `0x4f0626`) fired on a visit that printed NO production
+setter (`0x4efe50`) first; it is gated by `(DAT_00920434 == 0) || ((bVar8 & DAT_00985b10) == 0)`
+and its ELSE branch SETS the marker at `0x4f05bd` (0 events). Static first: `scratch/m71/dis.py
+4efed8 4f05c6` for what reaches `0x4f05e2` (bail `0x4efa63`, pay epilogue `0x4efed8`, facility
+exits `0x4f0a42/0x4f0b86/0x4f0c28`), then who writes/read `DAT_00920434` and `DAT_00985b10` and
+where `bVar8` comes from; then ONE live run. Other open threads (NAMED M75/M76): the alpha
+validator+tier path, the sweep's window arithmetic, other FUN_00572800 callers, the s115
+`0x41 -> 0x05` whole-word writer, and when the upkeep (FUN_00521070) / tech (FUN_005a7970) passes run.
 2. **Who calls the `0x4194b3` handler / what widget message `0x4d00` is** (zeroes the cursor
    after a queue mutation; sender `0x584010`, `0x4eb6b0` runs after it; did NOT fire at a
    completion or round boundary).
@@ -118,21 +117,23 @@ shard_014:17826); (d) the s115 `0x41 -> 0x05` bit-6-LOST whole-word writer (`0x5
 
 ## LIVE FACTS / KIT
 
-- **Box at session-117 close:** round ~52 (m75sweep1 window), `terran.exe` UP (the binary is
-`terran.exe` — pgrep -x terrans.exe finds nothing), University Base idx 0 head 194, flags
-after the run: 192=0x105 (marker residue), 193=0x45, 194=0x45, 64/128/129/130/131=0x05.
+- **Box at session-118 close:** `terran.exe` UP (the binary is `terran.exe` — pgrep -x terrans.exe
+finds nothing), round ~52 after m76marker1, University Base idx 0; flags after the run:
+192=0x005, 193=0x045, 194=0x045, 64/128/129/130/131=0x05 — NO record carries 0x100.
 Fresh `m54b_clean.SAV` loads 192/193/194 at `0x01/0x41/0x41` (193/194 carry bit 6, NOT bit 2 —
 s116's "0x41 = bit 2 set" was wrong: bit 2 = 0x4, 0x41 has it CLEAR). Korolev Center does not
 exist here. Always read `pending` back after an enqueue before arming.
-- **Prices (`price_of`, multiplier 9):** head 2 = 9, 192/193 = 18, 194 = 27 — but the gate
-  charges `edi` (M73/M74/M75: markup charged at most once per designed record; the sweep marks
-  the rest). Never assert arrival from `price_of`. Free chooser ids 194/2/1/0; 195 -> -3,
-  196+ recordless. Enqueue refuses `pending >= 9` (`0x418b05`).
-- **Reload recipe (~35 s, bare filename):** `SMAC_SAVE='m54b_clean.SAV' python3
-  scripts/m54a_load.py --relaunch` -> `accept_ready.py` -> enqueue (`m57_ui_enqueue.py --base-index
-  0 --cell-item 194 --inserts 1`) -> **read `pending` back** -> the acceptance run (or just run
-  `m75_sweep_replay.py`, which does all of it). The load stalls at a misread `movie` screen
-  ~1 in 3 times: re-run `--relaunch`, do NOT press Return on the save browser.
+- **Prices (`price_of`, multiplier 9):** head 2 = 9, 192/193 = 18, 194 = 27 — but the gate charges
+  `edi` (M73-M76: markup at most once per designed record; the sweep marks the rest). Never assert
+  arrival from `price_of`. Free chooser ids 194/2/1/0; 195 -> -3, 196+ recordless; enqueue refuses
+  `pending >= 9` (`0x418b05`).
+- **Reload recipe (~35 s, bare filename):** `SMAC_SAVE='m54b_clean.SAV' python3 scripts/m54a_load.py
+  --relaunch` -> `accept_ready.py` -> enqueue (`m57_ui_enqueue.py --base-index 0 --cell-item 194
+  --inserts 1`) -> **read `pending` back** -> the acceptance run (the acceptance scripts do all of
+  it). The load stalls at a misread `movie` screen ~1 in 3: re-run `--relaunch`, never Return on
+  the save browser. An `artwork-close` screen is NOT a dialog — click its red CLOSE bar
+  (`smac_play.close_bar`; `m70_clear_dialog.py` refuses it by design; `scratch/m76_close_artwork.py`
+  does the click).
 - gdb: 4 hardware watchpoints and 10-12 clean silent breakpoints work (~35 s per boundary under
   them); conditional breakpoints keep the other bases/records out of the log. No `si` inside a
   breakpoint command list; stdout DRAINED to a file (`stdbuf -o0`); a printf newline in a
@@ -160,11 +161,12 @@ exist here. Always read `pending` back after an enqueue before arming.
   both. When the writer set is in doubt, skip the grep: `m74_flag_hw.py`-style HARDWARE
   watchpoints on the FIELD answer "who writes it" in one run. A watchpoint on the flag LOW WORD
   (+0x30..0x31) never reports a BYTE store to +0x31 (the 0x100 clear `0x4ef398`) — watch the
-  high byte or census the bit.
-- **A dialog swallows every click and every turn-end key while the HUD bar reads THROUGH it** (a
-  "insufficient minerals to support Scout" dialog made two scripts' chooser clicks no-ops). Return
-  clears a dialog; a BUILD/base PANE needs Escape (Escape on the bare map raises the quit prompt —
-  never OK). Run `m70_clear_dialog.py` before blaming the chooser map.
+  high byte or census the bit. A grep-derived register expression can be WRONG: `0x595f82/91/9c` with
+  `$esi/52` printed tid 324/325 — esi there is not a type-record pointer, so check a breakpoint's
+  tid expression against the instruction bytes before it goes inside a gate.
+- **A dialog swallows every click and every turn-end key while the HUD bar reads THROUGH it.**
+  Return clears a dialog; a BUILD/base PANE needs Escape (Escape on the bare map raises the quit
+  prompt — never OK). Run `m70_clear_dialog.py` before blaming the chooser map.
 - **OCR cost is LOAD, not code:** one `ocr_fast` pass took ~70 s busy / ~3 min quiet. Check uptime.
 - The base array compacts mid-run: locate bases BY NAME, pair windows by name AND owner byte,
   pair units by `(x,y,type,owner)`. M71's gate 8 guards against watching another base's queue.
